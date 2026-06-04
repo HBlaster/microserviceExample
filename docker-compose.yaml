@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sqlserver-payments:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-payments
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: "Payment@1234!"
+      ACCEPT_EULA: "Y"
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Payment@1234!", "-No", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  sqlserver-billing:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-billing
+    ports:
+      - "1434:1433"
+    environment:
+      SA_PASSWORD: "Billing@1234!"
+      ACCEPT_EULA: "Y"
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Billing@1234!", "-No", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  payment-service:
+    build:
+      context: ./PaymentService
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PaymentsDb=Server=sqlserver-payments;Database=PaymentsDB;User Id=sa;Password=Payment@1234!;TrustServerCertificate=True
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      sqlserver-payments:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  billing-service:
+    build:
+      context: ./BillingService
+      dockerfile: Dockerfile
+    container_name: billing-service
+    ports:
+      - "5002:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__BillingDb=Server=sqlserver-billing;Database=BillingDB;User Id=sa;Password=Billing@1234!;TrustServerCertificate=True
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      sqlserver-billing:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    driver: bridge
