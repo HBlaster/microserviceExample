@@ -17,6 +17,18 @@ builder.Services.AddSingleton<RabbitMqPublisher>(sp =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("VuePolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .WithHeaders("Content-Type", "Authorization")
+              .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+              .AllowCredentials();
+    });
+});
 
 var app = builder.Build();
 
@@ -29,6 +41,8 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseCors("VuePolicy");
 app.MapControllers();
+app.MapHub<PaymentService.Hubs.PaymentHub>("/paymentHub");
 
 app.Run();
