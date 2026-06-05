@@ -24,8 +24,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("VuePolicy", policy =>
     {
         policy.WithOrigins("http://localhost:5173")
-              .WithHeaders("Content-Type", "Authorization")
-              .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
               .AllowCredentials();
     });
 });
@@ -43,6 +43,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors("VuePolicy");
 app.MapControllers();
-app.MapHub<PaymentService.Hubs.PaymentHub>("/paymentHub");
+app.MapHub<PaymentService.Hubs.PaymentHub>("/paymentHub")
+   .RequireCors("VuePolicy"); 
 
 app.Run();
